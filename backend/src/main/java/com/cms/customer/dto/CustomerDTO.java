@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import javax.validation.Valid;
 import javax.validation.constraints.Email;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
@@ -37,8 +38,10 @@ public class CustomerDTO {
 
     private String gender;
 
+    @Valid
     private Set<AddressDTO> addresses = new HashSet<>();
 
+    @Valid
     private Set<PhoneNumberDTO> phoneNumbers = new HashSet<>();
 
     private Set<Long> familyMemberIds = new HashSet<>();

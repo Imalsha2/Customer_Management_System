@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotNull;
 
 @Data
 @NoArgsConstructor
@@ -18,6 +19,7 @@ public class AddressDTO {
 
     private String addressLine2;
 
+    @NotNull(message = "City is required")
     private Long cityId;
 
     private String cityName;

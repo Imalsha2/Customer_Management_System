@@ -36,7 +36,7 @@ function CustomerList() {
         setTotalPages(response.data.totalPages);
       }
     } catch (error) {
-      toast.error('Failed to load customers');
+      toast.error('Unable to load customers. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -53,6 +53,7 @@ function CustomerList() {
       if (citiesRes.success) setCities(citiesRes.data);
     } catch (error) {
       console.error('Failed to load master data', error);
+      toast.error('Could not load master data. Please retry.');
     }
   };
 
@@ -70,7 +71,7 @@ function CustomerList() {
         setTotalPages(response.data.totalPages);
       }
     } catch (error) {
-      toast.error('Search failed');
+      toast.error('Search failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -83,7 +84,7 @@ function CustomerList() {
         toast.success('Customer deleted successfully');
         loadCustomers();
       } catch (error) {
-        toast.error('Failed to delete customer');
+        toast.error('Unable to delete customer. Please try again.');
       }
     }
   };
@@ -96,7 +97,7 @@ function CustomerList() {
         setShowViewModal(true);
       }
     } catch (error) {
-      toast.error('Failed to load customer details');
+      toast.error('Unable to load customer details. Please try again.');
     }
   };
 
@@ -141,10 +142,6 @@ function CustomerList() {
         addresses: normalizedAddresses
       };
 
-      console.log('Form data before filtering:', formData);
-      console.log('Data to submit:', dataToSubmit);
-      console.log('Addresses to submit:', dataToSubmit.addresses);
-
       if (selectedCustomer) {
         await CustomerService.updateCustomer(selectedCustomer.id, dataToSubmit);
         toast.success('Customer updated successfully');
@@ -157,7 +154,7 @@ function CustomerList() {
       resetForm();
       loadCustomers();
     } catch (error) {
-      toast.error(error.message || 'Operation failed');
+      toast.error(error.message || 'Save failed. Please try again.');
     }
   };
 
@@ -197,7 +194,7 @@ function CustomerList() {
       toast.success('Customers exported successfully');
     } catch (error) {
       const status = error?.status || error?.statusCode || error?.response?.status;
-      const message = status ? `Export failed (HTTP ${status})` : 'Export failed. Check if backend is running.';
+      const message = status ? `Export failed (HTTP ${status})` : 'Export failed. Check that the backend is running.';
       toast.error(message);
     }
   };
@@ -266,7 +263,7 @@ function CustomerList() {
       console.error('Import error:', error);
       
       // Extract detailed error message
-      let errorMessage = 'Import failed';
+      let errorMessage = 'Import failed. Please review the file and try again.';
       
       if (error.response) {
         // Backend returned error response
@@ -338,6 +335,7 @@ function CustomerList() {
       {loading ? (
         <div className="text-center">
           <Spinner animation="border" />
+          <div className="mt-2">Loading customers...</div>
         </div>
       ) : (
         <>
@@ -605,7 +603,6 @@ function CustomerList() {
                           const selectedValue = e.target.value;
                           const cityId = selectedValue && selectedValue !== '' ? parseInt(selectedValue, 10) : null;
                           newAddresses[index].cityId = cityId;
-                          console.log('City selected:', selectedValue, 'Parsed to:', cityId);
                           setFormData({ ...formData, addresses: newAddresses });
                         }}
                       >

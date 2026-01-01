@@ -16,6 +16,7 @@ public class PhoneNumberDTO {
     @NotBlank(message = "Phone number is required")
     private String phoneNumber;
 
+    @NotBlank(message = "Phone type is required")
     private String phoneType;
 
     private Boolean isPrimary;

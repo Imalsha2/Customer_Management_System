@@ -2,6 +2,40 @@
 
 Full-stack enterprise Customer Management System built with Spring Boot, React, and MariaDB.
 
+## ✍️ About & Approach (solo build)
+- Built end-to-end (backend + frontend + DB) by me for interview-ready demonstration.
+- Focused on clean layering: controller → service → repository → entity/DTO with ModelMapper.
+- Prioritized operability: sensible defaults, seed data, and repeatable setup scripts.
+
+## 🧭 Architecture at a Glance
+- **Backend:** Spring Boot (REST), MariaDB, JPA/Hibernate, POI for streaming Excel import/export.
+- **Frontend:** React + Axios + React-Bootstrap; simple service layer wrapping API calls.
+- **Packaging:** Maven multi-module style folder (backend + frontend sibling), with environment-specific properties.
+
+## 🧠 Design Decisions & Trade-offs
+- **Streaming Excel (SXSSF):** avoids OOM for 1M+ rows at the cost of slightly slower writes.
+- **NIC uniqueness:** enforced in service/import to keep DB clean; chosen over DB unique constraint to allow controlled skips with feedback.
+- **Batch size 1000:** balance between JDBC round-trips and memory pressure during bulk import.
+- **Open-in-view left on (default):** acceptable for small demo; can be disabled with dedicated DTO projections if needed.
+- **Context path `/api`:** keeps backend neatly namespaced for proxying from React dev server.
+
+## 🔧 What I’d Improve Next
+- Add pagination/sort params to export for partial dumps.
+- Add integration tests around import/export happy-path and edge cases.
+- Introduce request validation on DTOs (e.g., phone/email formats) and consistent error codes.
+- Docker Compose for DB + backend + frontend to simplify first-time spin-up.
+
+## ✅ Testing & Verification (done manually here)
+- Backend: `mvn test` (unit set), `mvn spring-boot:run` smoke with sample data.
+- Frontend: `npm start` smoke; verified customer list + CRUD + export after null-safety fix.
+- Export: null-safe primary flags added in `CustomerServiceImpl` to avoid NPE on missing primary markers.
+
+## 🎙️ Interview Highlights (talking points)
+- Bulk import/export: streaming POI (SXSSF), batch writes, and duplicate NIC skip with summary.
+- Data model: customers with addresses, phone numbers, and family links; master data for cities/countries.
+- Error handling: global handler returning structured API responses; CORS configured for localhost dev.
+- Performance: batch size tuning, HikariCP defaults, and lazy relations to keep memory low during bulk ops.
+
 ## 🚀 Technologies Used
 
 ### Backend
@@ -374,7 +408,7 @@ REACT_APP_API_URL=http://localhost:8080/api
 
 ## 👥 Contributors
 
-- Customer Management System Team
+- Imalsha 
 
 ## 📄 License
 
