@@ -265,23 +265,23 @@ public class CustomerServiceImpl implements CustomerService {
                 // Get primary phone number
                 Set<PhoneNumber> phoneNumbers = customer.getPhoneNumbers();
                 String primaryPhone = phoneNumbers != null
-                    ? phoneNumbers.stream()
-                        .filter(p -> Boolean.TRUE.equals(p.getIsPrimary()))
-                        .findFirst()
-                        .map(PhoneNumber::getPhoneNumber)
-                        .orElse("")
-                    : "";
+                        ? phoneNumbers.stream()
+                                .filter(p -> Boolean.TRUE.equals(p.getIsPrimary()))
+                                .findFirst()
+                                .map(PhoneNumber::getPhoneNumber)
+                                .orElse("")
+                        : "";
                 row.createCell(7).setCellValue(primaryPhone);
 
                 // Get primary address
                 Set<Address> addresses = customer.getAddresses();
                 String primaryAddress = addresses != null
-                    ? addresses.stream()
-                        .filter(a -> Boolean.TRUE.equals(a.getIsPrimary()))
-                        .findFirst()
-                        .map(Address::getAddressLine1)
-                        .orElse("")
-                    : "";
+                        ? addresses.stream()
+                                .filter(a -> Boolean.TRUE.equals(a.getIsPrimary()))
+                                .findFirst()
+                                .map(Address::getAddressLine1)
+                                .orElse("")
+                        : "";
                 row.createCell(8).setCellValue(primaryAddress);
             }
 
