@@ -26,6 +26,7 @@ function CustomerList() {
     addresses: [],
     phoneNumbers: []
   });
+  const [submitting, setSubmitting] = useState(false);
 
   const loadCustomers = useCallback(async () => {
     setLoading(true);
@@ -118,7 +119,8 @@ function CustomerList() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setSubmitting(true);
+
     try {
       // Filter out empty phone numbers and addresses
       const normalizedAddresses = formData.addresses
@@ -155,6 +157,8 @@ function CustomerList() {
       loadCustomers();
     } catch (error) {
       toast.error(error.message || 'Save failed. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -293,126 +297,147 @@ function CustomerList() {
 
   return (
     <Container className="mt-4">
-      <h2>Customer Management</h2>
-      
-      <Row className="mb-3">
-        <Col md={6}>
-          <Form.Group className="d-flex">
-            <Form.Control
-              type="text"
-              placeholder="Search customers..."
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-            />
-            <Button variant="primary" className="ms-2" onClick={handleSearch}>
-              <FaSearch /> Search
-            </Button>
-          </Form.Group>
-        </Col>
-        <Col md={6} className="text-end">
-          <Button variant="success" className="me-2" onClick={() => setShowModal(true)}>
-            <FaPlus /> Add Customer
-          </Button>
-          <Button variant="info" className="me-2" onClick={handleExport}>
-            <FaFileExcel /> Export
-          </Button>
-          <Button variant="secondary" className="me-2" size="sm" onClick={handleDownloadTemplate}>
-            <FaFileExcel /> Template
-          </Button>
-          <label htmlFor="import-file" className="btn btn-warning">
-            <FaFileExcel /> Import
-          </label>
-          <input
-            id="import-file"
-            type="file"
-            accept=".xlsx,.xls"
-            style={{ display: 'none' }}
-            onChange={handleImport}
-          />
-        </Col>
-      </Row>
-
-      {loading ? (
-        <div className="text-center">
-          <Spinner animation="border" />
-          <div className="mt-2">Loading customers...</div>
-        </div>
-      ) : (
-        <>
-          <Table striped bordered hover responsive style={{tableLayout: 'fixed'}}>
-            <thead>
-              <tr>
-                <th style={{width: '5%'}}>ID</th>
-                <th style={{width: '15%'}}>First Name</th>
-                <th style={{width: '15%'}}>Last Name</th>
-                <th style={{width: '15%'}}>NIC</th>
-                <th style={{width: '20%'}}>Email</th>
-                <th style={{width: '10%'}}>Gender</th>
-                <th style={{width: '20%'}}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="text-center">No customers found</td>
-                </tr>
-              ) : (
-                customers.map(customer => (
-                  <tr key={customer.id}>
-                    <td>{customer.id}</td>
-                    <td>{customer.firstName}</td>
-                    <td>{customer.lastName}</td>
-                    <td>{customer.nic}</td>
-                    <td>{customer.email}</td>
-                    <td>{customer.gender}</td>
-                    <td style={{whiteSpace: 'nowrap'}}>
-                      <Button
-                        variant="info"
-                        size="sm"
-                        className="me-2"
-                        onClick={() => handleView(customer.id)}
-                      >
-                        <FaEye /> View
-                      </Button>
-                      <Button
-                        variant="warning"
-                        size="sm"
-                        className="me-2"
-                        onClick={() => handleEdit(customer)}
-                      >
-                        <FaEdit /> Edit
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => handleDelete(customer.id)}
-                      >
-                        <FaTrash /> Delete
-                      </Button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </Table>
-
-          <div className="d-flex justify-content-between">
-            <Button
-              disabled={currentPage === 0}
-              onClick={() => setCurrentPage(currentPage - 1)}
-            >
-              Previous
-            </Button>
-            <span>Page {currentPage + 1} of {totalPages}</span>
-            <Button
-              disabled={currentPage >= totalPages - 1}
-              onClick={() => setCurrentPage(currentPage + 1)}
-            >
-              Next
-            </Button>
+      <Card className="shadow-sm mb-4">
+        <Card.Body>
+          <div className="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+            <div>
+              <h2 className="mb-1">Customer Management</h2>
+            </div>
+            <div className="d-flex flex-wrap gap-2">
+              <Button variant="success" onClick={() => setShowModal(true)} disabled={loading}>
+                <FaPlus /> Add Customer
+              </Button>
+              <Button variant="info" onClick={handleExport} disabled={loading}>
+                <FaFileExcel /> Export
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleDownloadTemplate} disabled={loading}>
+                <FaFileExcel /> Template
+              </Button>
+              <label
+                htmlFor="import-file"
+                className={`btn btn-warning ${loading ? 'disabled' : ''}`}
+                aria-disabled={loading}
+              >
+                <FaFileExcel /> Import
+              </label>
+              <input
+                id="import-file"
+                type="file"
+                accept=".xlsx,.xls"
+                style={{ display: 'none' }}
+                onChange={handleImport}
+                disabled={loading}
+              />
+            </div>
           </div>
-        </>
-      )}
+
+          <Row className="g-2 align-items-center mb-3">
+            <Col md={6}>
+              <Form.Group className="d-flex">
+                <Form.Control
+                  type="text"
+                  placeholder="Search customers..."
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                />
+                <Button variant="primary" className="ms-2" onClick={handleSearch} disabled={loading}>
+                  <FaSearch /> Search
+                </Button>
+              </Form.Group>
+            </Col>
+          </Row>
+
+          {loading ? (
+            <div className="text-center py-4">
+              <Spinner animation="border" role="status" />
+              <div className="mt-2">Loading customers...</div>
+            </div>
+          ) : (
+            <>
+              <Table striped bordered hover responsive className="align-middle" style={{tableLayout: 'fixed'}}>
+                <thead>
+                  <tr>
+                    <th style={{width: '5%'}}>ID</th>
+                    <th style={{width: '15%'}}>First Name</th>
+                    <th style={{width: '15%'}}>Last Name</th>
+                    <th style={{width: '15%'}}>NIC</th>
+                    <th style={{width: '20%'}}>Email</th>
+                    <th style={{width: '10%'}}>Gender</th>
+                    <th style={{width: '20%'}}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {customers.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="text-center py-4">
+                        <div className="mb-2">No customers found.</div>
+                        <Button variant="success" size="sm" onClick={() => setShowModal(true)} disabled={loading}>
+                          <FaPlus className="me-1" /> Add your first customer
+                        </Button>
+                      </td>
+                    </tr>
+                  ) : (
+                    customers.map(customer => (
+                      <tr key={customer.id}>
+                        <td>{customer.id}</td>
+                        <td>{customer.firstName}</td>
+                        <td>{customer.lastName}</td>
+                        <td>{customer.nic}</td>
+                        <td>{customer.email}</td>
+                        <td>{customer.gender}</td>
+                        <td style={{whiteSpace: 'nowrap'}}>
+                          <Button
+                            variant="info"
+                            size="sm"
+                            className="me-2"
+                            onClick={() => handleView(customer.id)}
+                            disabled={loading}
+                          >
+                            <FaEye /> View
+                          </Button>
+                          <Button
+                            variant="warning"
+                            size="sm"
+                            className="me-2"
+                            onClick={() => handleEdit(customer)}
+                            disabled={loading}
+                          >
+                            <FaEdit /> Edit
+                          </Button>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => handleDelete(customer.id)}
+                            disabled={loading}
+                          >
+                            <FaTrash /> Delete
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </Table>
+
+              <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <Button
+                  disabled={currentPage === 0}
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="text-muted">Page {currentPage + 1} of {totalPages}</span>
+                <Button
+                  disabled={currentPage >= totalPages - 1}
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </>
+          )}
+        </Card.Body>
+      </Card>
 
       {/* Customer Form Modal */}
       <Modal show={showModal} onHide={() => { setShowModal(false); resetForm(); }} size="lg">
@@ -681,8 +706,13 @@ function CustomerList() {
               <Button variant="secondary" className="me-2" onClick={() => { setShowModal(false); resetForm(); }}>
                 Cancel
               </Button>
-              <Button variant="primary" type="submit">
-                {selectedCustomer ? 'Update' : 'Create'}
+              <Button variant="primary" type="submit" disabled={submitting}>
+                {submitting ? (
+                  <>
+                    <Spinner animation="border" size="sm" className="me-2" />
+                    Saving...
+                  </>
+                ) : selectedCustomer ? 'Update' : 'Create'}
               </Button>
             </div>
           </Form>
