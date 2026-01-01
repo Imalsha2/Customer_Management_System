@@ -1,7 +1,7 @@
 package com.cms.customer.service;
 
 import com.cms.customer.dto.CustomerDTO;
-import com.cms.customer.entity.Customer;
+import com.cms.customer.dto.ImportResultDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,7 +22,7 @@ public interface CustomerService {
 
     void deleteCustomer(Long id);
 
-    List<CustomerDTO> importCustomersFromExcel(MultipartFile file);
+    ImportResultDTO importCustomersFromExcel(MultipartFile file);
 
     byte[] exportCustomersToExcel();
 

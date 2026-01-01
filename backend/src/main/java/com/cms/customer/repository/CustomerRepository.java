@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
@@ -41,4 +42,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
             "LEFT JOIN FETCH c.phoneNumbers " +
             "WHERE c.id IN :ids")
     List<Customer> findByIdInWithDetails(@Param("ids") List<Long> ids);
+
+    @Query("SELECT c.nic FROM Customer c WHERE c.nic IN :nics")
+    Set<String> findExistingNics(@Param("nics") Set<String> nics);
 }

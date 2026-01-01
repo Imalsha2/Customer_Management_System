@@ -2,6 +2,7 @@ package com.cms.customer.controller;
 
 import com.cms.customer.dto.ApiResponse;
 import com.cms.customer.dto.CustomerDTO;
+import com.cms.customer.dto.ImportResultDTO;
 import com.cms.customer.service.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -83,7 +84,7 @@ public class CustomerController {
     }
 
     @PostMapping("/import")
-    public ResponseEntity<ApiResponse<List<CustomerDTO>>> importCustomers(
+    public ResponseEntity<ApiResponse<ImportResultDTO>> importCustomers(
             @RequestParam("file") MultipartFile file) {
 
         if (file.isEmpty()) {
@@ -92,10 +93,11 @@ public class CustomerController {
                     .body(ApiResponse.error("Please select a file to upload"));
         }
 
-        List<CustomerDTO> importedCustomers = customerService.importCustomersFromExcel(file);
+        ImportResultDTO result = customerService.importCustomersFromExcel(file);
         return ResponseEntity.ok(ApiResponse.success(
-                "Imported " + importedCustomers.size() + " customers successfully",
-                importedCustomers));
+                "Imported " + result.getImportedCount() + " customers (" + result.getSkippedDuplicates()
+                        + " duplicates skipped)",
+                result));
     }
 
     @GetMapping("/export")
@@ -103,8 +105,12 @@ public class CustomerController {
         byte[] excelFile = customerService.exportCustomersToExcel();
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+        headers.setContentType(MediaType.parseMediaType(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
         headers.setContentDispositionFormData("attachment", "customers.xlsx");
+        headers.setCacheControl("no-cache, no-store, must-revalidate");
+        headers.add("Pragma", "no-cache");
+        headers.add("Expires", "0");
 
         return ResponseEntity
                 .ok()

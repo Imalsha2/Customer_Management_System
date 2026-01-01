@@ -104,11 +104,18 @@ spring.datasource.password=YOUR_PASSWORD
 
 The application will automatically create tables on first run (DDL auto-update enabled).
 
-To manually run scripts:
+To manually run DDL and sample data:
 ```bash
+# DDL - Creates all tables (customers, addresses, phone_numbers, cities, countries, etc.)
 mysql -u root -p customer_management_db < backend/src/main/resources/schema.sql
+
+# DML - Inserts sample countries, cities, and test customers
 mysql -u root -p customer_management_db < backend/src/main/resources/data.sql
 ```
+
+**Database Scripts Location:**
+- **DDL:** `backend/src/main/resources/schema.sql` (table definitions)
+- **DML:** `backend/src/main/resources/data.sql` (sample data)
 
 ### Backend Setup
 
@@ -165,10 +172,49 @@ Frontend will run on: `http://localhost:3000`
 | POST | `/api/customers` | Create new customer |
 | PUT | `/api/customers/{id}` | Update customer |
 | DELETE | `/api/customers/{id}` | Delete customer |
-| POST | `/api/customers/import` | Import customers from Excel |
+| POST | `/api/customers/import` | **Bulk import** customers from Excel (up to 1M rows) |
 | GET | `/api/customers/export` | Export customers to Excel |
 | POST | `/api/customers/{customerId}/family-members/{familyMemberId}` | Add family member |
 | DELETE | `/api/customers/{customerId}/family-members/{familyMemberId}` | Remove family member |
+
+### Bulk Import Details
+
+**Endpoint:** `POST /api/customers/import`
+
+**Features:**
+- Supports up to **1,000,000 rows** per import
+- Memory-efficient **streaming** processing (no full file load)
+- **Batch processing** (1000 records per batch)
+- Automatic **duplicate detection** via NIC (skips existing NICs)
+- Returns summary with imported/skipped counts and first 100 errors
+
+**Request:**
+- Content-Type: `multipart/form-data`
+- Parameter: `file` (Excel .xlsx file, max 50MB)
+
+**Excel Format:**
+| Column | Required | Format | Example |
+|--------|----------|--------|---------|
+| firstName | Yes | Text | John |
+| lastName | Yes | Text | Doe |
+| nic | Yes | Text (unique) | 1234567890V |
+| dateOfBirth | No | yyyy-MM-dd or Excel date | 1990-05-15 |
+| gender | No | MALE/FEMALE | MALE |
+| email | No | Email | john@example.com |
+
+**Response:** (ImportResultDTO)
+```json
+{
+  "importedCount": 9500,
+  "skippedDuplicates": 500,
+  "errors": [
+    "Row 123: Missing required field 'firstName'",
+    "Row 456: Duplicate NIC '1234567890V' (skipped)"
+  ]
+}
+```
+- Maximum 100 error messages returned
+- Successful records are saved even if some rows fail
 
 ### Master Data Endpoints
 
@@ -315,9 +361,11 @@ REACT_APP_API_URL=http://localhost:8080/api
 - Change port in `package.json` proxy setting (frontend)
 
 **3. Excel Import Fails**
-- Ensure file format is XLSX
-- Check file size limits
-- Verify column order matches template
+- Ensure file format is **.xlsx** (not .xls)
+- Check file size is under **50MB**
+- Verify columns match template: `firstName`, `lastName`, `nic`, `dateOfBirth` (yyyy-MM-dd), `gender`, `email`
+- Import supports up to **1,000,000 rows** with streaming processing
+- Duplicate NICs are automatically skipped; check response summary for details
 
 **4. Frontend Can't Connect to Backend**
 - Ensure backend is running on port 8080

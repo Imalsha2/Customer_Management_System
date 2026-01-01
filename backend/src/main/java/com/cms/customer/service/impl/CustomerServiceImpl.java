@@ -2,6 +2,7 @@ package com.cms.customer.service.impl;
 
 import com.cms.customer.dto.AddressDTO;
 import com.cms.customer.dto.CustomerDTO;
+import com.cms.customer.dto.ImportResultDTO;
 import com.cms.customer.dto.PhoneNumberDTO;
 import com.cms.customer.entity.Address;
 import com.cms.customer.entity.City;
@@ -12,9 +13,10 @@ import com.cms.customer.exception.ResourceNotFoundException;
 import com.cms.customer.repository.CityRepository;
 import com.cms.customer.repository.CustomerRepository;
 import com.cms.customer.service.CustomerService;
+import com.monitorjbl.xlsx.StreamingReader;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -27,6 +29,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -47,7 +50,8 @@ public class CustomerServiceImpl implements CustomerService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    private static final int BATCH_SIZE = 100;
+    private static final int BATCH_SIZE = 1000;
+    private static final int ERROR_LIMIT = 100;
 
     @Override
     public CustomerDTO createCustomer(CustomerDTO customerDTO) {
@@ -89,11 +93,14 @@ public class CustomerServiceImpl implements CustomerService {
                 address.setAddressLine2(addressDTO.getAddressLine2());
                 address.setAddressType(addressDTO.getAddressType());
                 address.setIsPrimary(addressDTO.getIsPrimary());
+                address.setCustomer(existingCustomer);
 
                 if (addressDTO.getCityId() != null) {
                     City city = cityRepository.findById(addressDTO.getCityId())
                             .orElseThrow(() -> new ResourceNotFoundException("City", "id", addressDTO.getCityId()));
                     address.setCity(city);
+                } else {
+                    throw new IllegalArgumentException("City must be selected for address");
                 }
 
                 existingCustomer.addAddress(address);
@@ -108,6 +115,7 @@ public class CustomerServiceImpl implements CustomerService {
                 phoneNumber.setPhoneNumber(phoneDTO.getPhoneNumber());
                 phoneNumber.setPhoneType(phoneDTO.getPhoneType());
                 phoneNumber.setIsPrimary(phoneDTO.getIsPrimary());
+                phoneNumber.setCustomer(existingCustomer);
                 existingCustomer.addPhoneNumber(phoneNumber);
             }
         }
@@ -144,61 +152,81 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public List<CustomerDTO> importCustomersFromExcel(MultipartFile file) {
-        List<CustomerDTO> importedCustomers = new ArrayList<>();
+    public ImportResultDTO importCustomersFromExcel(MultipartFile file) {
+        long importedCount = 0;
+        long skippedDuplicates = 0;
+        List<String> errors = new ArrayList<>();
 
-        try (Workbook workbook = new XSSFWorkbook(file.getInputStream())) {
+        try (InputStream is = file.getInputStream();
+                Workbook workbook = StreamingReader.builder()
+                        .rowCacheSize(200)
+                        .bufferSize(4096)
+                        .open(is)) {
+
             Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rowIterator = sheet.iterator();
 
-            // Skip header row
-            if (rowIterator.hasNext()) {
-                rowIterator.next();
-            }
+            List<Customer> batch = new ArrayList<>();
+            Set<String> batchNics = new HashSet<>();
+            int rowIndex = 0;
 
-            List<Customer> customersToSave = new ArrayList<>();
-            int count = 0;
-
-            while (rowIterator.hasNext()) {
-                Row row = rowIterator.next();
+            for (Row row : sheet) {
+                if (rowIndex++ == 0) {
+                    continue; // header
+                }
 
                 try {
                     Customer customer = parseCustomerFromRow(row);
+                    if (customer.getNic() == null || customer.getNic().isEmpty()) {
+                        addError(errors, row.getRowNum(), "NIC is required");
+                        continue;
+                    }
 
-                    // Skip if NIC already exists
-                    if (!customerRepository.existsByNic(customer.getNic())) {
-                        customersToSave.add(customer);
-                        count++;
+                    batch.add(customer);
+                    batchNics.add(customer.getNic());
 
-                        // Batch insert every BATCH_SIZE records
-                        if (count % BATCH_SIZE == 0) {
-                            saveCustomerBatch(customersToSave);
-                            customersToSave.clear();
-                            entityManager.clear(); // Clear persistence context to prevent memory issues
-                        }
+                    if (batch.size() >= BATCH_SIZE) {
+                        BatchResult result = saveBatchIfNew(batch, batchNics);
+                        importedCount += result.saved;
+                        skippedDuplicates += result.skipped;
+                        batch.clear();
+                        batchNics.clear();
+                        entityManager.clear();
                     }
                 } catch (Exception e) {
-                    // Log error and continue with next row
-                    System.err.println("Error parsing row " + row.getRowNum() + ": " + e.getMessage());
+                    addError(errors, row.getRowNum(), e.getMessage());
                 }
             }
 
-            // Save remaining customers
-            if (!customersToSave.isEmpty()) {
-                saveCustomerBatch(customersToSave);
+            if (!batch.isEmpty()) {
+                BatchResult result = saveBatchIfNew(batch, batchNics);
+                importedCount += result.saved;
+                skippedDuplicates += result.skipped;
             }
-
-            // Fetch all imported customers
-            importedCustomers = customerRepository.findAll()
-                    .stream()
-                    .map(this::convertToDTO)
-                    .collect(Collectors.toList());
 
         } catch (IOException e) {
             throw new RuntimeException("Failed to parse Excel file: " + e.getMessage());
         }
 
-        return importedCustomers;
+        return new ImportResultDTO(importedCount, skippedDuplicates, errors);
+    }
+
+    private BatchResult saveBatchIfNew(List<Customer> batch, Set<String> batchNics) {
+        Set<String> existing = customerRepository.findExistingNics(batchNics);
+        List<Customer> toSave = batch.stream()
+                .filter(c -> !existing.contains(c.getNic()))
+                .collect(Collectors.toList());
+
+        if (!toSave.isEmpty()) {
+            saveCustomerBatch(toSave);
+        }
+
+        return new BatchResult(toSave.size(), existing.size());
+    }
+
+    private void addError(List<String> errors, int rowNum, String message) {
+        if (errors.size() < ERROR_LIMIT) {
+            errors.add("Row " + rowNum + ": " + message);
+        }
     }
 
     @Override
@@ -206,7 +234,8 @@ public class CustomerServiceImpl implements CustomerService {
         List<Customer> customers = customerRepository.findAll();
 
         try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) { // Keep 100 rows in memory
-            Sheet sheet = workbook.createSheet("Customers");
+            SXSSFSheet sheet = workbook.createSheet("Customers");
+            sheet.trackAllColumnsForAutoSizing();
 
             // Create header row
             Row headerRow = sheet.createRow(0);
@@ -227,25 +256,32 @@ public class CustomerServiceImpl implements CustomerService {
                 row.createCell(0).setCellValue(customer.getId());
                 row.createCell(1).setCellValue(customer.getFirstName());
                 row.createCell(2).setCellValue(customer.getLastName());
-                row.createCell(3).setCellValue(dateFormat.format(customer.getDateOfBirth()));
+                Date dob = customer.getDateOfBirth();
+                row.createCell(3).setCellValue(dob != null ? dateFormat.format(dob) : "");
                 row.createCell(4).setCellValue(customer.getNic());
                 row.createCell(5).setCellValue(customer.getEmail() != null ? customer.getEmail() : "");
                 row.createCell(6).setCellValue(customer.getGender() != null ? customer.getGender() : "");
 
                 // Get primary phone number
-                String primaryPhone = customer.getPhoneNumbers().stream()
-                        .filter(PhoneNumber::getIsPrimary)
+                Set<PhoneNumber> phoneNumbers = customer.getPhoneNumbers();
+                String primaryPhone = phoneNumbers != null
+                    ? phoneNumbers.stream()
+                        .filter(p -> Boolean.TRUE.equals(p.getIsPrimary()))
                         .findFirst()
                         .map(PhoneNumber::getPhoneNumber)
-                        .orElse("");
+                        .orElse("")
+                    : "";
                 row.createCell(7).setCellValue(primaryPhone);
 
                 // Get primary address
-                String primaryAddress = customer.getAddresses().stream()
-                        .filter(Address::getIsPrimary)
+                Set<Address> addresses = customer.getAddresses();
+                String primaryAddress = addresses != null
+                    ? addresses.stream()
+                        .filter(a -> Boolean.TRUE.equals(a.getIsPrimary()))
                         .findFirst()
                         .map(Address::getAddressLine1)
-                        .orElse("");
+                        .orElse("")
+                    : "";
                 row.createCell(8).setCellValue(primaryAddress);
             }
 
@@ -293,6 +329,16 @@ public class CustomerServiceImpl implements CustomerService {
         customerRepository.flush();
     }
 
+    private static class BatchResult {
+        final long saved;
+        final long skipped;
+
+        BatchResult(long saved, long skipped) {
+            this.saved = saved;
+            this.skipped = skipped;
+        }
+    }
+
     private Customer parseCustomerFromRow(Row row) {
         Customer customer = new Customer();
 
@@ -301,7 +347,7 @@ public class CustomerServiceImpl implements CustomerService {
 
         // Parse date
         Cell dobCell = row.getCell(2);
-        if (dobCell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(dobCell)) {
+        if (dobCell != null && dobCell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(dobCell)) {
             customer.setDateOfBirth(dobCell.getDateCellValue());
         }
 
@@ -321,6 +367,9 @@ public class CustomerServiceImpl implements CustomerService {
             case STRING:
                 return cell.getStringCellValue();
             case NUMERIC:
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    return cell.getDateCellValue().toString();
+                }
                 return String.valueOf((long) cell.getNumericCellValue());
             default:
                 return null;
@@ -363,7 +412,15 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     private Customer convertToEntity(CustomerDTO dto) {
-        Customer customer = modelMapper.map(dto, Customer.class);
+        // Manually map basic fields to avoid ModelMapper creating child entities
+        // without relations
+        Customer customer = new Customer();
+        customer.setFirstName(dto.getFirstName());
+        customer.setLastName(dto.getLastName());
+        customer.setDateOfBirth(dto.getDateOfBirth());
+        customer.setNic(dto.getNic());
+        customer.setEmail(dto.getEmail());
+        customer.setGender(dto.getGender());
 
         // Map addresses
         if (dto.getAddresses() != null) {
@@ -373,11 +430,14 @@ public class CustomerServiceImpl implements CustomerService {
                 address.setAddressLine2(addressDTO.getAddressLine2());
                 address.setAddressType(addressDTO.getAddressType());
                 address.setIsPrimary(addressDTO.getIsPrimary());
+                address.setCustomer(customer);
 
                 if (addressDTO.getCityId() != null) {
                     City city = cityRepository.findById(addressDTO.getCityId())
                             .orElseThrow(() -> new ResourceNotFoundException("City", "id", addressDTO.getCityId()));
                     address.setCity(city);
+                } else {
+                    throw new IllegalArgumentException("City must be selected for address");
                 }
 
                 customer.addAddress(address);
@@ -387,7 +447,11 @@ public class CustomerServiceImpl implements CustomerService {
         // Map phone numbers
         if (dto.getPhoneNumbers() != null) {
             for (PhoneNumberDTO phoneDTO : dto.getPhoneNumbers()) {
-                PhoneNumber phoneNumber = modelMapper.map(phoneDTO, PhoneNumber.class);
+                PhoneNumber phoneNumber = new PhoneNumber();
+                phoneNumber.setPhoneNumber(phoneDTO.getPhoneNumber());
+                phoneNumber.setPhoneType(phoneDTO.getPhoneType());
+                phoneNumber.setIsPrimary(phoneDTO.getIsPrimary());
+                phoneNumber.setCustomer(customer);
                 customer.addPhoneNumber(phoneNumber);
             }
         }

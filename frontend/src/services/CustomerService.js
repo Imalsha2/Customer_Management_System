@@ -47,7 +47,7 @@ const CustomerService = {
     });
   },
 
-  // Export customers to Excel
+  // Export customers to Excel (keeps headers for filename)
   exportCustomers: () => {
     return axiosInstance.get('/customers/export', {
       responseType: 'blob'

@@ -1,8 +1,11 @@
 package com.cms.customer.entity;
 
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 
 import javax.persistence.*;
 import java.util.Date;
@@ -15,13 +18,17 @@ import java.util.Set;
         @Index(name = "idx_name", columnList = "first_name, last_name"),
         @Index(name = "idx_dob", columnList = "date_of_birth")
 })
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@ToString(exclude = { "addresses", "phoneNumbers", "familyMembers" })
 public class Customer {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @Column(name = "first_name", nullable = false, length = 100)
