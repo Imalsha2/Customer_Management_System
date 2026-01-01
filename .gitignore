@@ -39,8 +39,6 @@ Desktop.ini
 logs/
 
 # Environment
-.env
-.env.local
 .env.*.local
 
 # Temporary files
@@ -48,3 +46,5 @@ logs/
 *.temp
 *.bak
 *.cache
+config.bat
+node_modules
